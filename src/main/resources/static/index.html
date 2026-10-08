@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>java_fight · AI 知识库问答</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script>window.Vue || document.write('<script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"><\/script>')</script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0 }
+        body { font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; background: #f2f4f8; color: #1f2937 }
+        header { background: #111827; color: #fff; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center }
+        .brand { font-weight: 700; font-size: 18px }
+        .brand span { font-weight: 400; opacity: .65; margin-left: 10px; font-size: 14px }
+        .who { display: flex; align-items: center; gap: 12px; font-size: 14px }
+        .wrap { max-width: 880px; margin: 0 auto; padding: 20px }
+        .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08); padding: 24px }
+        .login { max-width: 360px; margin: 10vh auto 0; display: flex; flex-direction: column; gap: 12px }
+        .login h2 { text-align: center; margin-bottom: 4px }
+        input { padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; outline: none }
+        input:focus { border-color: #4f6ef7 }
+        button { padding: 9px 16px; border: none; border-radius: 8px; background: #4f6ef7; color: #fff; cursor: pointer; font-size: 14px; white-space: nowrap }
+        button:hover { filter: brightness(1.08) }
+        button:disabled { opacity: .5; cursor: default }
+        button.danger { background: #ef4444 }
+        .err { color: #ef4444; font-size: 13px }
+        .tabs { display: flex; gap: 8px; margin-bottom: 16px }
+        .tabs button { background: #e7eaf3; color: #374151 }
+        .tabs button.active { background: #4f6ef7; color: #fff }
+        .rowline { display: flex; gap: 10px; margin-bottom: 16px }
+        .rowline input { flex: 1 }
+        ul.conv { list-style: none }
+        ul.conv li { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid #eef0f4 }
+        ul.conv li:last-child { border-bottom: none }
+        .c-title { flex: 1; font-weight: 600 }
+        .c-time { color: #9ca3af; font-size: 12px }
+        .empty-list { color: #9ca3af; padding: 24px 0; text-align: center }
+        .chat-head { margin-bottom: 12px; font-size: 15px }
+        .msgs { height: 52vh; overflow-y: auto; background: #f7f8fc; border: 1px solid #eceef4; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px }
+        .row { display: flex }
+        .row.right { justify-content: flex-end }
+        .bubble { max-width: 72%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.6 }
+        .bubble .content { white-space: pre-wrap; word-break: break-word }
+        .bubble .time { font-size: 11px; opacity: .55; margin-top: 4px }
+        .bubble.me { background: #4f6ef7; color: #fff; border-bottom-right-radius: 3px }
+        .bubble.bot { background: #fff; border: 1px solid #e5e7eb; border-bottom-left-radius: 3px }
+        .typing { color: #6b7280 }
+        .empty { color: #9ca3af; text-align: center; margin: auto }
+        .chatin { display: flex; gap: 10px }
+        .chatin input { flex: 1 }
+        .doc { display: flex; flex-direction: column; gap: 12px }
+        .doc p { font-size: 13px; color: #6b7280 }
+        .tip { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #111827; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,.25); z-index: 9 }
+    </style>
+</head>
+<body>
+<div id="app">
+    <header>
+        <div class="brand">java_fight<span>AI 知识库问答</span></div>
+        <div class="who" v-if="token">
+            <span>{{ username }}</span>
+            <button @click="doLogout">退出</button>
+        </div>
+    </header>
+
+    <div class="wrap">
+        <!-- 登录页 -->
+        <div class="card login" v-if="!token">
+            <h2>登录</h2>
+            <input v-model.trim="username" placeholder="用户名" @keyup.enter="login">
+            <input v-model="password" type="password" placeholder="密码" @keyup.enter="login">
+            <button @click="login">登 录</button>
+            <p class="err" v-if="loginError">{{ loginError }}</p>
+        </div>
+
+        <template v-else>
+            <nav class="tabs">
+                <button :class="{active: tab === 'conv'}" @click="tab = 'conv'; loadConversations()">会话管理</button>
+                <button :class="{active: tab === 'chat'}" @click="goChat()">AI 问答</button>
+                <button :class="{active: tab === 'doc'}" @click="tab = 'doc'">知识库</button>
+            </nav>
+
+            <!-- 会话管理页 -->
+            <section v-show="tab === 'conv'">
+                <div class="card">
+                    <div class="rowline">
+                        <input v-model="newTitle" placeholder="新会话标题" @keyup.enter="createConversation">
+                        <button @click="createConversation">新建会话</button>
+                    </div>
+                    <ul class="conv" v-if="conversations.length">
+                        <li v-for="c in conversations" :key="c.id">
+                            <div class="c-title">{{ c.title }}</div>
+                            <div class="c-time">{{ fmt(c.updatedAt) }}</div>
+                            <button @click="openConv(c)">进入对话</button>
+                            <button class="danger" @click="removeConversation(c)">删除</button>
+                        </li>
+                    </ul>
+                    <div v-else class="empty-list">还没有会话，先新建一个</div>
+                </div>
+            </section>
+
+            <!-- AI 问答页 -->
+            <section v-show="tab === 'chat'">
+                <div class="card" v-if="!currentConv" style="text-align:center;color:#9ca3af;padding:40px 24px">
+                    还没有选中的会话，去「会话管理」新建或进入一个对话
+                </div>
+                <div class="card" v-else>
+                    <div class="chat-head">当前会话：<b>{{ currentConv.title }}</b></div>
+                    <div class="msgs" ref="box">
+                        <div v-if="!messages.length" class="empty">还没有消息，发第一条试试</div>
+                        <div v-for="m in messages" :key="m.id" class="row" :class="m.role === 'user' ? 'right' : ''">
+                            <div class="bubble" :class="m.role === 'user' ? 'me' : 'bot'">
+                                <div class="content">{{ m.content }}</div>
+                                <div class="time">{{ fmt(m.createdAt) }}</div>
+                            </div>
+                        </div>
+                        <div v-if="sending" class="row"><div class="bubble bot typing">模型思考中…</div></div>
+                    </div>
+                    <div class="chatin">
+                        <input v-model="draft" placeholder="输入问题，回车发送" :disabled="sending" @keyup.enter="send">
+                        <button @click="send" :disabled="sending || !draft.trim()">发送</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 知识库页（RAG） -->
+            <section v-show="tab === 'doc'">
+                <div class="card doc">
+                    <b>知识库文档（RAG）</b>
+                    <p>上传 .txt / .md 文档，系统会切分并向量化入库；在「AI 问答」里提问时会自动检索你上传的文档内容作为参考。</p>
+                    <div class="rowline" style="margin-bottom:0">
+                        <input type="file" accept=".txt,.md,.markdown" @change="e => docFile = e.target.files[0]">
+                        <button @click="uploadDoc" :disabled="!docFile || uploading">{{ uploading ? '上传中…' : '上传入库' }}</button>
+                    </div>
+                    <p v-if="docMsg" :class="docOk ? '' : 'err'">{{ docMsg }}</p>
+                </div>
+            </section>
+        </template>
+    </div>
+
+    <div class="tip" v-if="tip">{{ tip }}</div>
+</div>
+
+<script>
+    Vue.createApp({
+        data() {
+            return {
+                token: '', username: '', password: '', loginError: '',
+                tab: 'conv',
+                conversations: [], newTitle: '',
+                currentConv: null, messages: [], draft: '', sending: false,
+                docFile: null, docMsg: '', docOk: false, uploading: false,
+                tip: ''
+            }
+        },
+        methods: {
+            fmt(s) { return String(s || '').replace('T', ' ').slice(0, 19) },
+            showTip(t) { this.tip = t; clearTimeout(this._tt); this._tt = setTimeout(() => { this.tip = '' }, 3500) },
+
+            async request(url, opts = {}) {
+                if (this.token) {
+                    opts.headers = Object.assign({}, opts.headers, { Authorization: 'Bearer ' + this.token })
+                }
+                let r
+                try {
+                    r = await fetch(url, opts)
+                } catch (e) {
+                    throw { msg: '网络错误：请用 http://localhost:8080/index.html 打开本页，不要双击文件' }
+                }
+                let body = {}
+                try { body = await r.json() } catch (e) { }
+                if (r.status === 401) throw { auth: true, msg: body.msg || '未登录或登录已过期' }
+                return body
+            },
+            async postJSON(url, data) {
+                return this.request(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                })
+            },
+            handleErr(e, fallback) {
+                if (e && e.auth) { this.doLogout(); this.showTip(e.msg || '请先登录') }
+                else { this.showTip((e && e.msg) || fallback) }
+            },
+
+            async login() {
+                this.loginError = ''
+                if (!this.username || !this.password) { this.loginError = '用户名和密码都要填'; return }
+                try {
+                    const res = await this.postJSON('/login', { username: this.username, password: this.password })
+                    if (res.code === 1) {
+                        this.token = res.data
+                        this.loadConversations()
+                    } else {
+                        this.loginError = res.msg || '登录失败'
+                    }
+                } catch (e) {
+                    this.loginError = e.msg || '登录失败'
+                }
+            },
+            doLogout() {
+                this.token = ''
+                this.password = ''
+                this.conversations = []
+                this.currentConv = null
+                this.messages = []
+                this.tab = 'conv'
+            },
+
+            async loadConversations() {
+                try {
+                    const res = await this.request('/conversation/list')
+                    if (res.code === 1) this.conversations = res.data || []
+                    else this.showTip(res.msg || '获取会话列表失败')
+                } catch (e) { this.handleErr(e, '获取会话列表失败') }
+            },
+            async createConversation() {
+                const title = this.newTitle.trim() || '未命名会话'
+                try {
+                    const res = await this.postJSON('/conversation', { title })
+                    if (res.code === 1) {
+                        this.newTitle = ''
+                        await this.loadConversations()
+                        this.openConv(res.data)
+                    } else this.showTip(res.msg || '创建失败')
+                } catch (e) { this.handleErr(e, '创建失败') }
+            },
+            async removeConversation(c) {
+                if (!confirm('删除会话「' + c.title + '」？')) return
+                try {
+                    const res = await this.request('/conversation/' + c.id, { method: 'DELETE' })
+                    if (res.code === 1) {
+                        if (this.currentConv && this.currentConv.id === c.id) {
+                            this.currentConv = null
+                            this.messages = []
+                            this.tab = 'conv'
+                        }
+                        this.loadConversations()
+                    } else this.showTip(res.msg || '删除失败')
+                } catch (e) { this.handleErr(e, '删除失败') }
+            },
+
+            goChat() {
+                this.tab = 'chat'
+                if (!this.currentConv && this.conversations.length) this.openConv(this.conversations[0])
+            },
+            openConv(c) {
+                this.currentConv = c
+                this.tab = 'chat'
+                this.draft = ''
+                this.loadMessages()
+            },
+            async loadMessages() {
+                try {
+                    const res = await this.request('/message/list?conversationId=' + this.currentConv.id)
+                    if (res.code === 1) {
+                        this.messages = res.data || []
+                        this.scrollBottom()
+                    } else this.showTip(res.msg || '获取历史消息失败')
+                } catch (e) { this.handleErr(e, '获取历史消息失败') }
+            },
+            async send() {
+                const content = this.draft.trim()
+                if (!content || this.sending) return
+                this.sending = true
+                try {
+                    const res = await this.postJSON('/chat', { conversationId: this.currentConv.id, content })
+                    if (res.code === 1) {
+                        this.draft = ''
+                        await this.loadMessages()
+                    } else this.showTip(res.msg || '发送失败')
+                } catch (e) { this.handleErr(e, '发送失败') }
+                finally { this.sending = false }
+            },
+            scrollBottom() {
+                this.$nextTick(() => {
+                    const el = this.$refs.box
+                    if (el) el.scrollTop = el.scrollHeight
+                })
+            },
+
+            async uploadDoc() {
+                if (!this.docFile || this.uploading) return
+                this.uploading = true
+                this.docMsg = ''
+                try {
+                    const fd = new FormData()
+                    fd.append('file', this.docFile)
+                    const res = await this.request('/doc/upload', { method: 'POST', body: fd })
+                    if (res.code === 1) {
+                        this.docOk = true
+                        this.docMsg = '上传成功：已切分入库 ' + res.data + ' 块。去「AI 问答」问文档里的内容试试。'
+                    } else {
+                        this.docOk = false
+                        this.docMsg = res.msg || '上传失败'
+                    }
+                } catch (e) {
+                    this.docOk = false
+                    this.docMsg = e.msg || '上传失败'
+                    if (e.auth) this.handleErr(e)
+                } finally {
+                    this.uploading = false
+                }
+            }
+        }
+    }).mount('#app')
+</script>
+</body>
+</html>

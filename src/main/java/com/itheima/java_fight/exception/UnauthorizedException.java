@@ -1,0 +1,7 @@
+package com.itheima.java_fight.exception;
+
+public class UnauthorizedException extends RuntimeException {
+    public UnauthorizedException(String message) {
+        super(message);
+    }
+}

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.itheima.java_fight.mapper.UserMapper">
+    <select id="selectPage"
+            resultType="com.itheima.java_fight.pojo.User">
+        SELECT id,username,age,created_at,role
+        from tb_user
+        <where>
+            <if test="username!=null and username !=''">
+                username LIKE CONCAT('%',#{username},'%')
+            </if>
+            <if test="age !=null">
+                and age = #{age}
+            </if>
+        </where>
+        order by id ASC
+        LIMIT #{offset},#{size}
+    </select>
+
+    <select id="getUserNumber"
+    resultType="Long">
+        SELECT COUNT(*)
+        from tb_user
+        <where>
+            <if test = "username!=null and username !=''">
+        username LIKE CONCAT('%',#{username},'%')
+        </if>
+            <if test = "age !=null" >
+          and age = #{age}
+        </if>
+        </where>
+    </select>
+
+    <delete id="deleteBatch">
+        DELETE from tb_user
+               Where id IN
+               <foreach collection="ids"
+                        item="id"
+                        open="("
+                        separator=","
+                        close=")">
+                   #{id}
+               </foreach>
+    </delete>
+
+
+</mapper>
