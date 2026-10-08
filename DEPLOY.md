@@ -328,7 +328,7 @@ setx OLLAMA_VULKAN 0
 7. `curl.exe -s -i http://localhost:8080/findAll` —— 期待 `401`。
 8. 登录拿 token，走一次「建会话 → 对话 → 看历史」。
 
-**不在这份文档里的东西**：`db/init.sql` 里那几个测试账号是**开发期手动建的**，换机器后自己 `INSERT` 或者走注册接口。
+**测试账号**：`db/init.sql` 已预置三个账号，克隆后可直接登录演示页：`test-bcrypt-01 / mypwd123`（ADMIN）、`test-bcrypt-02 / mypwd456`、`test-user-01 / pwd123`。本项目无自助注册，建新账号走用户管理接口（需 ADMIN）。这些账号只存在于本地初始化库里，不是真实凭据。
 
 ---
 

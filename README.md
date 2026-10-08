@@ -30,6 +30,10 @@
 
 单文件 HTML + Vue 3（CDN），与后端打在同一个 jar（`src/main/resources/static/`），同源访问，无需 CORS 配置。覆盖登录、会话管理、AI 问答、知识库（RAG）、用户管理。
 
+**登录**
+
+![登录](docs/login.png)
+
 **AI 问答（多轮上下文，历史持久化）**
 
 ![AI 问答](docs/chat.png)
