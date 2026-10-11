@@ -5,6 +5,8 @@ import com.itheima.java_fight.context.UserContext;
 import com.itheima.java_fight.exception.BusinessException;
 import com.itheima.java_fight.mapper.DocChunkMapper;
 import com.itheima.java_fight.pojo.DocChunk;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -15,11 +17,25 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class DocService {
 
+    private static final Logger log = LoggerFactory.getLogger(DocService.class);
+
     private static final int MAX_CHUNK_LEN = 1000;
+
+    // 1E 手建池：核心 2 → 队列 200 → 扩到 4 → 拒绝；线程名走默认的 pool-N-thread-M
+    private static final ThreadPoolExecutor POOL = new ThreadPoolExecutor(
+            2, 4, 60, TimeUnit.SECONDS,
+            new ArrayBlockingQueue<>(200),
+            Executors.defaultThreadFactory(),
+            new ThreadPoolExecutor.AbortPolicy());
     private final EmbeddingModel embeddingModel;
     private final DocChunkMapper docChunkMapper;
     private final ObjectMapper objectMapper;
@@ -36,13 +52,22 @@ public class DocService {
         Long userId = UserContext.getUserId();
         String docName = file.getOriginalFilename();
 
-        List<DocChunk> chunks = new ArrayList<>();
-        for (int i = 0; i < pieces.size(); i++) {
-            String piece = pieces.get(i);
-            float[] vector = embeddingModel.embed(piece);
-            chunks.add(new DocChunk(null, userId, docName, i, piece, toJson(vector), LocalDateTime.now()));
-        }
-        return docChunkMapper.insertBatch(chunks);
+        CompletableFuture
+                .supplyAsync(() -> {
+                    List<DocChunk> chunks = new ArrayList<>();
+                    for (int i = 0; i < pieces.size(); i++) {
+                        String piece = pieces.get(i);
+                        float[] vector = embeddingModel.embed(piece);
+                        chunks.add(new DocChunk(null, userId, docName, i, piece, toJson(vector), LocalDateTime.now()));
+                    }
+                    return docChunkMapper.insertBatch(chunks);
+                }, POOL)
+                .exceptionally(ex -> {
+                    log.error("doc async process failed, docName={}", docName, ex);
+                    return null;
+                });
+
+        return pieces.size();
     }
 
     private String readFile(MultipartFile file){
