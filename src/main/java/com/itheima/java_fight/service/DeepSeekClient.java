@@ -12,7 +12,8 @@ import org.springframework.ai.retry.NonTransientAiException;
 import org.springframework.ai.retry.TransientAiException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.ResourceAccessException;
-
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
 import java.util.List;
 
 @Slf4j
@@ -23,15 +24,17 @@ public class DeepSeekClient {
 
     private final ChatClient chatClient;
 
-    public DeepSeekClient(ChatClient.Builder builder) {
-        this.chatClient = builder.build();
+    public DeepSeekClient(ChatClient.Builder builder, ChatMemory chatMemory) {
+        this.chatClient = builder
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .build();
     }
-
-    public String callModel(List<ChatMessage> chatMessages) {
-        List<Message>messages = chatMessages.stream().map(m->toMessage(m)).toList();
+    public String callModel(Long conversationId, List<ChatMessage> chatMessages) {
+        List<Message> messages = chatMessages.stream().map(m -> toMessage(m)).toList();
         try {
             return chatClient.prompt()
                     .messages(messages)
+                    .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, String.valueOf(conversationId)))
                     .call()
                     .content();
         } catch (ResourceAccessException e) {

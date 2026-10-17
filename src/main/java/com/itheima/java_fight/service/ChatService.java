@@ -15,7 +15,6 @@ import java.util.List;
 @Service
 public class ChatService {
 
-    private static final int MAX_HISTORY_MESSAGES = 20;
     private final ConversationMapper conversationMapper;
     private final MessageService messageService;
     private final ConversationService conversationService;
@@ -40,18 +39,13 @@ public class ChatService {
         }
         messageService.append(conversationId,"user",content);
 
-        List<Message> history = messageService.listByConversationId(conversationId);
-        int from = Math.max(0, history.size() - MAX_HISTORY_MESSAGES);
-        List<ChatMessage> messages = new ArrayList<>(
-                history.subList(from, history.size()).stream()
-                        .map(m -> new ChatMessage(m.getRole(), m.getContent()))
-                        .toList()
-        );
+        List<ChatMessage> messages = new ArrayList<>();
+        messages.add(new ChatMessage("user", content));
         List<String> context = docService.retrieve(content);
         if (!context.isEmpty()) {
             messages.add(0, new ChatMessage("system", "以下是相关资料，回答时优先参考：\n" + String.join("\n\n", context)));
         }
-        String reply = deepSeekClient.callModel(messages);
+        String reply = deepSeekClient.callModel(conversationId, messages);
         Message message = messageService.appendReply(conversationId, reply);
         return message;
     }
