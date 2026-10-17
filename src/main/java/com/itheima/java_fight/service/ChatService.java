@@ -29,24 +29,17 @@ public class ChatService {
         this.docService = docService;
     }
 
-    public Message chat(Long conversationId,String content) {
+    public Message chat(Long conversationId, String content) {
         Conversation conversation = conversationMapper.findById(conversationId);
-        if (conversation == null){
+        if (conversation == null) {
             throw new BusinessException("数据异常");
         }
-        if (!conversation.getUserId().equals(UserContext.getUserId())){
+        if (!conversation.getUserId().equals(UserContext.getUserId())) {
             throw new ForbiddenException("无权限");
         }
-        messageService.append(conversationId,"user",content);
+        messageService.append(conversationId, "user", content);
 
-        List<ChatMessage> messages = new ArrayList<>();
-        messages.add(new ChatMessage("user", content));
-        List<String> context = docService.retrieve(content);
-        if (!context.isEmpty()) {
-            messages.add(0, new ChatMessage("system", "以下是相关资料，回答时优先参考：\n" + String.join("\n\n", context)));
-        }
-        String reply = deepSeekClient.callModel(conversationId, messages);
-        Message message = messageService.appendReply(conversationId, reply);
-        return message;
+        String reply = deepSeekClient.callModel(conversationId, UserContext.getUserId(), content);
+        return messageService.appendReply(conversationId, reply);
     }
 }

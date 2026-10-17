@@ -1,65 +1,55 @@
 package com.itheima.java_fight.service;
 
-import com.itheima.java_fight.dto.ChatMessage;
 import com.itheima.java_fight.exception.BusinessException;
-import org.springframework.ai.chat.messages.Message;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.messages.AssistantMessage;
-import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.retry.NonTransientAiException;
 import org.springframework.ai.retry.TransientAiException;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.ResourceAccessException;
-import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
-import org.springframework.ai.chat.memory.ChatMemory;
-import java.util.List;
 
 @Slf4j
 @Service
 public class DeepSeekClient {
 
-
-
     private final ChatClient chatClient;
 
-    public DeepSeekClient(ChatClient.Builder builder, ChatMemory chatMemory) {
+    public DeepSeekClient(ChatClient.Builder builder, ChatMemory chatMemory, VectorStore vectorStore) {
         this.chatClient = builder
-                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .defaultAdvisors(
+                        MessageChatMemoryAdvisor.builder(chatMemory).build(),
+                        QuestionAnswerAdvisor.builder(vectorStore)
+                                .searchRequest(SearchRequest.builder()
+                                        .topK(3)
+                                        .similarityThreshold(0.0)
+                                        .build())
+                                .build())
                 .build();
     }
-    public String callModel(Long conversationId, List<ChatMessage> chatMessages) {
-        List<Message> messages = chatMessages.stream().map(m -> toMessage(m)).toList();
+
+    public String callModel(Long conversationId, Long userId, String content) {
         try {
             return chatClient.prompt()
-                    .messages(messages)
-                    .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, String.valueOf(conversationId)))
+                    .user(content)
+                    .advisors(a -> a
+                            .param(ChatMemory.CONVERSATION_ID, String.valueOf(conversationId))
+                            .param(QuestionAnswerAdvisor.FILTER_EXPRESSION, "user_id == '" + userId + "'"))
                     .call()
                     .content();
         } catch (ResourceAccessException e) {
             log.error("DeepSeek 连接失败或超时：{}", e.getMessage());
             throw new BusinessException("AI 服务响应超时，请稍后重试");
+        } catch (NonTransientAiException e) {
+            log.error("DeepSeek 调用失败（4xx）：{}", e.getMessage());
+            throw new BusinessException("AI 服务调用失败");
+        } catch (TransientAiException e) {
+            log.error("DeepSeek 暂时不可用（超时/5xx）", e);
+            throw new BusinessException("AI 服务暂时不可用，请稍后重试");
         }
-        catch (
-    NonTransientAiException e) {
-        log.error("DeepSeek 调用失败（4xx）：{}", e.getMessage());
-        throw new BusinessException("AI 服务调用失败");
-    } catch (
-    TransientAiException e) {
-        log.error("DeepSeek 暂时不可用（超时/5xx）", e);
-        throw new BusinessException("AI 服务暂时不可用，请稍后重试");
     }
-    }
-
-    private Message toMessage(ChatMessage chatMessage){
-        if ("assistant".equals(chatMessage.role())){
-            return new AssistantMessage(chatMessage.content());
-        }
-        if ("system".equals(chatMessage.role())){
-            return new SystemMessage(chatMessage.content());
-        }
-        return new UserMessage(chatMessage.content());
-    }
-
 }

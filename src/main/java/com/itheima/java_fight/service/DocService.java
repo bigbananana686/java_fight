@@ -98,44 +98,4 @@ public class DocService {
         }
         return pieces;
     }
-
-    private double dot(float[] a, float[] b) {
-        double sum = 0;                       // 累加器
-        for (int i = 0; i < a.length; i++) {  // 1024 个位置挨个走
-            sum += a[i] * b[i];               // 对应位相乘，加进去
-        }
-        return sum;                           // 这个数就是相似度
-    }
-
-    private float[] fromJson(String json) {
-        try {
-            return objectMapper.readValue(json, float[].class);
-        } catch (JacksonException e) {
-            throw new BusinessException("向量反序列化失败");
-        }
-    }
-
-    private static final int TOP_K = 3;
-
-    // record：一次性装「分数 + 内容」的小类型
-    private record Hit(double score, String content) {}
-
-    public List<String> retrieve(String question) {
-        float[] q = embeddingModel.embed(question);
-        List<DocChunk> chunks = docChunkMapper.findByUserId(UserContext.getUserId());
-
-        List<Hit> hits = new ArrayList<>();
-        for (DocChunk c : chunks) {
-            float[] v = fromJson(c.getEmbedding());
-            hits.add(new Hit(dot(q, v), c.getContent()));
-        }
-
-        hits.sort((a, b) -> Double.compare(b.score, a.score));  // 分数高的排前面
-
-        List<String> top = new ArrayList<>();
-        for (int i = 0; i < Math.min(TOP_K, hits.size()); i++) {
-            top.add(hits.get(i).content());
-        }
-        return top;
-    }
 }
