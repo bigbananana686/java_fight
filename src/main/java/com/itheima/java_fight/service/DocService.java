@@ -1,6 +1,7 @@
 package com.itheima.java_fight.service;
 
 
+import com.itheima.java_fight.config.VectorStoreConfig;
 import com.itheima.java_fight.context.UserContext;
 import com.itheima.java_fight.exception.BusinessException;
 import com.itheima.java_fight.mapper.DocChunkMapper;
@@ -8,6 +9,7 @@ import com.itheima.java_fight.pojo.DocChunk;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import tools.jackson.core.JacksonException;
@@ -30,6 +32,7 @@ public class DocService {
 
     private static final int MAX_CHUNK_LEN = 1000;
 
+    private final VectorStore vectorStore;
     // 1E 手建池：核心 2 → 队列 200 → 扩到 4 → 拒绝；线程名走默认的 pool-N-thread-M
     private static final ThreadPoolExecutor POOL = new ThreadPoolExecutor(
             2, 4, 60, TimeUnit.SECONDS,
@@ -40,10 +43,12 @@ public class DocService {
     private final DocChunkMapper docChunkMapper;
     private final ObjectMapper objectMapper;
 
-    public DocService (EmbeddingModel embeddingModel,DocChunkMapper docChunkMapper,ObjectMapper objectMapper){
+    public DocService(EmbeddingModel embeddingModel, DocChunkMapper docChunkMapper,
+                      ObjectMapper objectMapper, VectorStore vectorStore) {
         this.embeddingModel = embeddingModel;
         this.docChunkMapper = docChunkMapper;
         this.objectMapper = objectMapper;
+        this.vectorStore = vectorStore;
     }
 
     public int upload(MultipartFile file) {
@@ -60,12 +65,15 @@ public class DocService {
                         float[] vector = embeddingModel.embed(piece);
                         chunks.add(new DocChunk(null, userId, docName, i, piece, toJson(vector), LocalDateTime.now()));
                     }
-                    return docChunkMapper.insertBatch(chunks);
+                    int inserted = docChunkMapper.insertBatch(chunks);
+                    vectorStore.add(VectorStoreConfig.toDocuments(chunks));
+                    return inserted;
                 }, POOL)
                 .exceptionally(ex -> {
                     log.error("doc async process failed, docName={}", docName, ex);
                     return null;
                 });
+
 
         return pieces.size();
     }

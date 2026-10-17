@@ -22,14 +22,16 @@ public class VectorStoreConfig {
         SimpleVectorStore store = SimpleVectorStore.builder(embeddingModel).build();
         List<DocChunk> chunks = docChunkMapper.findAll();
         if (!chunks.isEmpty()) {
-            List<Document> docs = chunks.stream()
-                    .map(c -> new Document(c.getContent(),
-                            Map.of("user_id", String.valueOf(c.getUserId()))))
-                    .toList();
-            store.add(docs);      // 逐条重新 embed，218 条约十几秒
+            store.add(toDocuments(chunks));
         }
         log.info("vector store 启动装载完成: chunks={}", chunks.size());
-
         return store;
+    }
+
+    public static List<Document> toDocuments(List<DocChunk> chunks) {
+        return chunks.stream()
+                .map(c -> new Document(c.getContent(),
+                        Map.of("user_id", String.valueOf(c.getUserId()))))
+                .toList();
     }
 }
