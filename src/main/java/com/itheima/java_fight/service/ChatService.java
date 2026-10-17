@@ -1,6 +1,7 @@
 package com.itheima.java_fight.service;
 
 import com.itheima.java_fight.context.UserContext;
+import com.itheima.java_fight.dto.ChatAnswer;
 import com.itheima.java_fight.dto.ChatMessage;
 import com.itheima.java_fight.exception.BusinessException;
 import com.itheima.java_fight.exception.ForbiddenException;
@@ -39,7 +40,8 @@ public class ChatService {
         }
         messageService.append(conversationId, "user", content);
 
-        String reply = deepSeekClient.callModel(conversationId, UserContext.getUserId(), content);
-        return messageService.appendReply(conversationId, reply);
+        ChatAnswer answer = deepSeekClient.callModel(conversationId, UserContext.getUserId(), content);
+        Message message = messageService.appendReply(conversationId, answer.answer());
+        return message;
     }
 }

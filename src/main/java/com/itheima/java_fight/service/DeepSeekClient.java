@@ -1,6 +1,7 @@
 package com.itheima.java_fight.service;
 
 import com.itheima.java_fight.ai.DocTools;
+import com.itheima.java_fight.dto.ChatAnswer;
 import com.itheima.java_fight.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -35,15 +36,17 @@ public class DeepSeekClient {
                 .build();
     }
 
-    public String callModel(Long conversationId, Long userId, String content) {
+    public ChatAnswer callModel(Long conversationId, Long userId, String content) {
         try {
-            return chatClient.prompt()
+            ChatAnswer answer = chatClient.prompt()
                     .user(content)
                     .advisors(a -> a
                             .param(ChatMemory.CONVERSATION_ID, String.valueOf(conversationId))
                             .param(QuestionAnswerAdvisor.FILTER_EXPRESSION, "user_id == '" + userId + "'"))
                     .call()
-                    .content();
+                    .entity(ChatAnswer.class);
+            log.info("chat answer citedIds={}", answer.citedIds());
+            return answer;
         } catch (ResourceAccessException e) {
             log.error("DeepSeek 连接失败或超时：{}", e.getMessage());
             throw new BusinessException("AI 服务响应超时，请稍后重试");

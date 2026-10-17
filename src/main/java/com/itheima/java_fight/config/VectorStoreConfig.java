@@ -30,8 +30,10 @@ public class VectorStoreConfig {
 
     public static List<Document> toDocuments(List<DocChunk> chunks) {
         return chunks.stream()
-                .map(c -> new Document(c.getContent(),
-                        Map.of("user_id", String.valueOf(c.getUserId()))))
+                .map(c -> new Document(
+                        "【块" + c.getId() + "】" + c.getContent(),
+                        Map.of("user_id", String.valueOf(c.getUserId()),
+                                "chunk_id", String.valueOf(c.getId()))))
                 .toList();
     }
 }
