@@ -257,7 +257,9 @@ public class UserService {
         String key = USER_KEY_PREFIX+userId;
         stringRedisTemplate.delete(key);
     }
-
+    public int count() {
+        return userMapper.countUsers();
+    }
 
 
 }

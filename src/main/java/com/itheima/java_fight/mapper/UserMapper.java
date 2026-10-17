@@ -36,6 +36,10 @@ public interface UserMapper {
 
     @Update("UPDATE tb_user SET role = #{role} WHERE id = #{id}")
     int updateRole(@Param("id") Long id, @Param("role") String role);
+
+    @Select("SELECT COUNT(*) FROM tb_user")
+    int countUsers();
+
 }
 
 
