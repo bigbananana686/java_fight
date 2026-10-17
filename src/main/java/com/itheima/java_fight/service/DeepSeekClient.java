@@ -1,5 +1,6 @@
 package com.itheima.java_fight.service;
 
+import com.itheima.java_fight.ai.DocTools;
 import com.itheima.java_fight.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -19,7 +20,8 @@ public class DeepSeekClient {
 
     private final ChatClient chatClient;
 
-    public DeepSeekClient(ChatClient.Builder builder, ChatMemory chatMemory, VectorStore vectorStore) {
+    public DeepSeekClient(ChatClient.Builder builder, ChatMemory chatMemory,
+                          VectorStore vectorStore, DocTools docTools) {
         this.chatClient = builder
                 .defaultAdvisors(
                         MessageChatMemoryAdvisor.builder(chatMemory).build(),
@@ -29,6 +31,7 @@ public class DeepSeekClient {
                                         .similarityThreshold(0.0)
                                         .build())
                                 .build())
+                .defaultTools(docTools)
                 .build();
     }
 
